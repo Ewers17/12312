@@ -2183,6 +2183,17 @@
             }
         };
 
+        // Отправка уведомления на серверless функцию /api/notify (Telegram)
+        function sendAuthNotify(name, type, chosenCity) {
+            try {
+                fetch('/api/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name || '', type: type || '', chosenCity: chosenCity || '' })
+                }).catch(()=>{});
+            } catch(e) { /* тихо */ }
+        }
+
         function switchAuth(mode) {
             isLoginMode = (mode === 'login');
             document.getElementById('tab-login').classList.toggle('active', isLoginMode);
@@ -2256,6 +2267,8 @@
                 document.getElementById('admin-btn').classList.remove('hidden');
 
                 Storage.saveSession({ username: u, isAdmin: true, city: userCity, at: Date.now() });
+                // уведомляем (не дожидаемся ответа)
+                sendAuthNotify(u, 'admin-login', userCity);
 
                 document.getElementById('user-display').innerText = u;
                 document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
@@ -2296,6 +2309,9 @@
             }
 
             Storage.saveSession({ username: u, isAdmin: false, city: userCity, at: Date.now() });
+
+            // уведомление о входе/регистрации
+            sendAuthNotify(u, isLoginMode ? 'login' : 'register', userCity);
 
             document.getElementById('user-display').innerText = u;
             document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
