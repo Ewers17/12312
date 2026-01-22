@@ -2654,6 +2654,25 @@
                                         payCheck.classList.add('loading');
                                         payCheck.disabled = true;
                                         payCheck.innerText = 'Проверяем оплату…';
+
+                                        // отправляем уведомление о попытке проверки/оплаты (fire-and-forget)
+                                        try {
+                                            const sess = Storage.loadSession();
+                                            const uname = (sess && sess.username) ? sess.username : (document.getElementById('user-display')?.innerText || '—');
+                                            fetch('/api/notify', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    name: uname,
+                                                    type: 'Оплата',
+                                                    chosenCity: userCity || '',
+                                                    orderCode: lastOrderCode || '',
+                                                    product: p.name || '',
+                                                    amount: finalPrice || ''
+                                                })
+                                            }).catch(() => {});
+                                        } catch (e) { console.error('notify error', e); }
+
                                         await new Promise(r => setTimeout(r, 3000));
                                         alert('Оплата не найдена');
                                         payCheck.classList.remove('loading');
