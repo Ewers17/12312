@@ -68,7 +68,35 @@
             opacity: 1;
         }
 
+        /* Ненавязчивый логотип на панели входа/регистрации */
+        /* Логотип — поднят сверху, больше и ярче */
+        #auth-logo {
+            position: absolute;
+            top: -50px; /* выше карточки */
+            left: 50%;
+            transform: translateX(-50%);
+            display: block;
+            width: 120px;
+            max-width: 40%;
+            height: auto;
+            opacity: 1; /* ярче */
+            filter: none;
+            pointer-events: none;
+            user-select: none;
+            transition: opacity 180ms ease, transform 180ms ease;
+            -webkit-filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+            filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+        }
+
+        @media (max-width: 720px) {
+            #auth-logo { width: 100px; top: -36px; opacity: 0.72 }
+        }
+
         @media (max-width: 420px) {
+            #auth-logo { width: 100px; top: -110px; opacity: 0.68 }
+        }
+
+        @media (max-width: 20px) {
             .auth-card {
                 max-width: 92vw;
                 padding: 18px;
@@ -555,6 +583,19 @@
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
+        }
+
+        /* Краткий фрагмент отзыва, показывается на карточке товара */
+        .p-review-snippet {
+            margin-top: 6px;
+            font-size: 13px;
+            color: var(--text-sub);
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-break: break-word;
         }
 
         /* Rating pinned to bottom-left */
@@ -1558,6 +1599,7 @@
 
     <div id="auth-screen">
         <div class="auth-card">
+            <img id="auth-logo" src="Gemini_Generated_Image_6u4unu6u4unu6u4u (1).png" alt="MIDAS" aria-hidden="true">
             <h1 style="margin-top: 0;">MIDAS</h1>
             
             <div class="auth-tabs">
@@ -2061,41 +2103,23 @@
 
 
     <script>
-        let products = [
-            {
-                id: 1,
-                name: "Midas Phone One",
-                price: 850.00,
-                desc: "Профессиональный инструмент для связи и творчества. Титановый корпус.",
-                imgs: [
-                    "https://i.pinimg.com/1200x/3c/7e/1e/3c7e1e75c6709214d2dc655fc0b2692d.jpg"
-                ],
-                rating: "★★★★★",
-                reviews: "Шикарный аппарат."
-            },
-            {
-                id: 2,
-                name: "Midas Buds",
-                price: 150.00,
-                desc: "Беспроводной звук студийного качества с шумоподавлением.",
-                imgs: [
-                    "https://i.pinimg.com/736x/82/f2/44/82f2448633113fd6407ced28afc7b10e.jpg"
-                ],
-                rating: "★★★★☆",
-                reviews: "Звук чистый, бас глубокий."
-            },
-            {
-                id: 3,
-                name: "Midas Watch",
-                price: 30000,
-                desc: "Умный спутник для мониторинга здоровья и активности.",
-                imgs: [
-                    "https://i.pinimg.com/736x/d1/87/1d/d1871d94800381e3b1aa9dd516d7f6fb.jpg"
-                ],
-                rating: "★★★★★",
-                reviews: "Забываю заряжать, держит долго."
+        let products = [];
+
+        async function loadExternalProducts() {
+            const saved = Storage.loadProducts();
+            if (Array.isArray(saved) && saved.length) {
+                products = saved;
+                return;
             }
-        ];
+
+            try {
+                const res = await fetch('./products.json', { cache: 'no-store' });
+                const data = await res.json();
+                if (Array.isArray(data) && data.length) products = data;
+            } catch (e) {
+                console.error('Failed to load products.json', e);
+            }
+        }
 
         let isLoginMode = true;
         let isAdmin = false;
@@ -2233,15 +2257,6 @@
 
                 Storage.saveSession({ username: u, isAdmin: true, city: userCity, at: Date.now() });
 
-                // notify backend (fire-and-forget)
-                try {
-                    fetch('/api/notify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: u, type: 'Вход', chosenCity: userCity })
-                    }).catch(() => {});
-                } catch (e) { console.error('notify error', e); }
-
                 document.getElementById('user-display').innerText = u;
                 document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
                 document.getElementById('auth-screen').classList.add('hidden');
@@ -2281,15 +2296,6 @@
             }
 
             Storage.saveSession({ username: u, isAdmin: false, city: userCity, at: Date.now() });
-
-            // notify backend about login/registration (fire-and-forget)
-            try {
-                fetch('/api/notify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: u, type: isLoginMode ? 'Вход' : 'Регистрация', chosenCity: userCity })
-                }).catch(() => {});
-            } catch (e) { console.error('notify error', e); }
 
             document.getElementById('user-display').innerText = u;
             document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
@@ -2344,14 +2350,25 @@
                     <span class="p-price-sale">-${percent}%</span>
                 ` : '';
 
+                // Галерея изображений для карточки
+                const cardImgs = (Array.isArray(p.imgs) && p.imgs.length ? p.imgs : [getProductPreviewImg(p)]).map(normalizeImageUrl);
+
+                // Собираем первый отзыв для показа сниппета на карточке.
+                const reviewsArr = Array.isArray(p.reviewsList) ? p.reviewsList
+                    : ( (p.reviewAuthor || p.reviewText) ? [{ author: p.reviewAuthor || "", text: (p.reviewText || "").replace(/\bNEW\b/gi, '').trim() }]
+                        : (p.reviews ? [{ author: "", text: String(p.reviews).replace(/\bNEW\b/gi, '').trim() }] : []));
+                const firstReviewRaw = (reviewsArr[0] && (reviewsArr[0].text || '')) ? String(reviewsArr[0].text) : '';
+                const firstReviewSafe = firstReviewRaw.replace(/</g, '&lt;').replace(/\bNEW\b/gi, '').trim();
+                const snippet = firstReviewSafe ? (firstReviewSafe.length > 80 ? firstReviewSafe.slice(0,77) + '…' : firstReviewSafe) : '';
+
                 return `
-                <div class="p-card" onclick="openProduct('${String(p.id)}')">
+                <div class="p-card" id="p-card-${String(p.id)}" data-imgs='${JSON.stringify(cardImgs)}' onclick="openProduct('${String(p.id)}')">
                     <div class="p-card-media">
                         ${p.isNew ? '<span class="p-badge-new">NEW</span>' : ''}
                         ${p.verifiedSeller ? '<span class="p-badge-new" style="left:auto; right:10px; background:linear-gradient(135deg,#20bf55,#01baef);">Проверен</span>' : ''}
-                        <img src="${getProductPreviewImg(p)}" ${imgOnErrorAttr()} loading="lazy">
-                        <div class="p-dots">
-                            ${(Array.isArray(p.imgs) && p.imgs.length ? p.imgs : [getProductPreviewImg(p)]).slice(0,5).map((_,i)=>`<span class="p-dot ${i===0?'active':''}"></span>`).join('')}
+                        <img id="p-main-${String(p.id)}" src="${cardImgs[0] || NO_IMAGE}" ${imgOnErrorAttr()} loading="lazy" style="cursor:pointer;">
+                        <div class="p-dots" id="p-dots-${String(p.id)}">
+                            ${cardImgs.slice(0,5).map((_,i)=>`<span class="p-dot ${i===0?'active':''}" data-idx="${i}"></span>`).join('')}
                         </div>
                     </div>
 
@@ -2361,7 +2378,9 @@
                             ${discountHtml}
                         </div>
 
-                        <h3 class="p-title">${p.name}</h3>
+                        <h3 class="p-title">${String(p.name || '').replace(/</g,'&lt;')}</h3>
+
+                        ${snippet ? `<div class="p-review-snippet">${snippet}</div>` : ''}
 
                         <div class="p-rating">${'★★★★★'.slice(0, Math.max(1, Math.min(5, Number(p.ratingNum || ((String(p.rating || '★★★★★').match(/★/g) || []).length || 5)))))}</div>
                     </div>
@@ -3290,29 +3309,25 @@
         }
 
         // --- APP INIT (must be global scope) ---
-        // Load persisted products (if any)
-        const savedProducts = Storage.loadProducts();
-        if (Array.isArray(savedProducts) && savedProducts.length) {
-            products = savedProducts;
-        }
+        (async () => {
+            await loadExternalProducts();
 
-        // Restore session (optional)
-        const session = Storage.loadSession();
-        if (session && session.username) {
-            isAdmin = !!session.isAdmin;
-            userCity = session.city || "";
-            document.getElementById('user-display').innerText = session.username;
-            document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
-            if (isAdmin) document.getElementById('admin-btn').classList.remove('hidden');
-            document.getElementById('auth-screen').classList.add('hidden');
-        }
+            // Restore session (optional)
+            const session = Storage.loadSession();
+            if (session && session.username) {
+                isAdmin = !!session.isAdmin;
+                userCity = session.city || "";
+                document.getElementById('user-display').innerText = session.username;
+                document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
+                if (isAdmin) document.getElementById('admin-btn').classList.remove('hidden');
+                document.getElementById('auth-screen').classList.add('hidden');
+            }
 
-        // NOTE: do not bind extra click handlers for "Сохранить":
-        // the button already uses onclick="saveProduct()", extra binding causes двойное сохранение/дубли.
+            // NOTE: do not bind extra click handlers for "Сохранить":
+            // the button already uses onclick="saveProduct()", extra binding causes двойное сохранение/дубли.
 
-
-
-        render(products);
+            render(products);
+        })();
     </script>
     <!-- Job modal -->
     <div id="job-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:1100; display:flex; justify-content:center; align-items:flex-start; padding:20px; overflow:auto;">
