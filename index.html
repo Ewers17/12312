@@ -1588,6 +1588,49 @@
         .btn-paycheck:active { transform: translateY(0) scale(0.98); opacity: 0.95; }
         .btn-paycheck.loading { opacity: 0.85; pointer-events: none; }
 
+        /* --- Auth loading overlay styled like site --- */
+        #auth-loading { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: none; align-items: center; justify-content: center; background: rgba(10,12,14,0.55); backdrop-filter: blur(6px); z-index: 2000; padding: 20px; box-sizing: border-box; }
+        #auth-loading.active { display: flex; }
+        /* Ensure inner loader fills overlay and centers its card */
+        .auth-loader { display:flex; align-items:center; justify-content:center; width:100%; height:100%; text-align: center; color: var(--text); font-weight:700; }
+
+        /* Card that matches auth-card visual language */
+        .loader-card {
+            width: 100%; max-width: 420px; padding: 26px; background: linear-gradient(180deg, rgba(45,48,51,0.96), rgba(26,28,30,0.96)); border-radius: var(--radius);
+            border: 1px solid rgba(168,199,250,0.12); box-shadow: 0 20px 60px rgba(0,0,0,0.55); display:flex; flex-direction:column; align-items:center; gap:12px; margin: auto;
+        }
+
+        .loader-logo { width: 92px; height: auto; opacity:0.98; -webkit-filter: drop-shadow(0 8px 18px rgba(0,0,0,0.6)); filter: drop-shadow(0 8px 18px rgba(0,0,0,0.6)); }
+
+        .auth-spinner { width: 120px; height: 120px; position: relative; margin: 6px auto 0; }
+        .auth-spinner::before {
+            content: "";
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            width: 76px; height: 76px; border-radius: 999px;
+            background: radial-gradient(circle at 30% 30%, rgba(168,199,250,0.14), rgba(168,199,250,0.06));
+            border: 1px solid rgba(168,199,250,0.06);
+            animation: blob-morph 4s ease-in-out infinite;
+            box-shadow: 0 10px 30px rgba(10,12,14,0.5) inset;
+        }
+
+        .auth-spinner .orb { position: absolute; width: 16px; height: 16px; border-radius: 50%; top: 50%; left: 50%; box-shadow: 0 6px 18px rgba(0,0,0,0.45); transform: translate(-50%, -50%) rotate(0deg) translateX(56px); }
+        .auth-spinner .orb:nth-child(1){ background: var(--accent); animation: orbit 1.4s linear infinite; }
+        .auth-spinner .orb:nth-child(2){ background: rgba(255,255,255,0.14); mix-blend-mode: screen; animation: orbit 1.6s linear infinite reverse; }
+        .auth-spinner .orb:nth-child(3){ background: rgba(255,255,255,0.08); animation: orbit 1.8s linear infinite; }
+        .auth-spinner .orb:nth-child(4){ background: rgba(168,199,250,0.28); animation: orbit 2s linear infinite reverse; }
+        .auth-spinner .orb:nth-child(5){ background: rgba(168,199,250,0.18); animation: orbit 2.2s linear infinite; }
+
+        @keyframes orbit {
+            0% { transform: translate(-50%, -50%) rotate(0deg) translateX(56px) scale(0.92); }
+            50% { transform: translate(-50%, -50%) rotate(180deg) translateX(56px) scale(1.05); }
+            100% { transform: translate(-50%, -50%) rotate(360deg) translateX(56px) scale(0.92); }
+        }
+
+        @keyframes blob-morph { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(0.98) rotate(-3deg); } 100% { transform: translate(-50%, -50%) scale(1); } }
+
+        .auth-dots { display: inline-block; margin-top:4px; }
+        .auth-dots span { display:inline-block; width:8px; height:8px; background: rgba(255,255,255,0.12); border-radius:50%; opacity:0.9; margin:0 6px; }
+
         @media (max-width: 900px) {
             .payment-grid { grid-template-columns: 1fr; }
             .payment-card { padding: 18px; }
@@ -1639,6 +1682,24 @@
             </div>
 
             <button class="primary-btn" id="auth-submit" onclick="handleAuth()">Войти</button>
+        </div>
+    </div>
+
+    <!-- Loading overlay for auth actions (styled like site) -->
+    <div id="auth-loading" aria-hidden="true">
+        <div class="auth-loader" role="status" aria-live="polite">
+            <div class="loader-card">
+                <img class="loader-logo" src="Gemini_Generated_Image_6u4unu6u4unu6u4u (1).png" alt="MIDAS">
+                <div class="auth-spinner" aria-hidden="true">
+                    <span class="orb"></span>
+                    <span class="orb"></span>
+                    <span class="orb"></span>
+                    <span class="orb"></span>
+                    <span class="orb"></span>
+                </div>
+                <div style="font-weight:700; margin-top:6px; color:var(--text);">Пожалуйста, подождите</div>
+                <div class="auth-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            </div>
         </div>
     </div>
 
@@ -2242,6 +2303,18 @@
             }
         }
 
+        function showAuthLoading() {
+            const el = document.getElementById('auth-loading');
+            if (el) el.classList.add('active');
+            document.body.classList.add('modal-open');
+        }
+
+        function hideAuthLoading() {
+            const el = document.getElementById('auth-loading');
+            if (el) el.classList.remove('active');
+            document.body.classList.remove('modal-open');
+        }
+
         function handleAuth() {
             const u = document.getElementById('user-in').value.trim();
             const p1 = document.getElementById('pass-in').value;
@@ -2260,19 +2333,21 @@
                 return;
             }
 
-            // Admin check
+            // Admin check — показать анимацию и подождать 4 секунды
             if(u === 'admin' && p1 === 'admin') {
                 isAdmin = true;
-                userCity = "Москва"; // можно поменять при желании
+                userCity = "Москва";
                 document.getElementById('admin-btn').classList.remove('hidden');
 
-                Storage.saveSession({ username: u, isAdmin: true, city: userCity, at: Date.now() });
-                // уведомляем (не дожидаемся ответа)
-                sendAuthNotify(u, 'admin-login', userCity);
-
-                document.getElementById('user-display').innerText = u;
-                document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
-                document.getElementById('auth-screen').classList.add('hidden');
+                showAuthLoading();
+                setTimeout(() => {
+                    Storage.saveSession({ username: u, isAdmin: true, city: userCity, at: Date.now() });
+                    sendAuthNotify(u, 'admin-login', userCity);
+                    document.getElementById('user-display').innerText = u;
+                    document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    hideAuthLoading();
+                }, 4000);
                 return;
             }
 
@@ -2308,33 +2383,75 @@
                 userCity = found.city || "";
             }
 
-            Storage.saveSession({ username: u, isAdmin: false, city: userCity, at: Date.now() });
-
-            // уведомление о входе/регистрации
-            sendAuthNotify(u, isLoginMode ? 'login' : 'register', userCity);
-
-            document.getElementById('user-display').innerText = u;
-            document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
-            document.getElementById('auth-screen').classList.add('hidden');
+            // Показываем анимацию, ждём ровно 4 секунды, затем сохраняем сессию и обновляем UI
+            showAuthLoading();
+            setTimeout(() => {
+                Storage.saveSession({ username: u, isAdmin: false, city: userCity, at: Date.now() });
+                sendAuthNotify(u, isLoginMode ? 'login' : 'register', userCity);
+                document.getElementById('user-display').innerText = u;
+                document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
+                document.getElementById('auth-screen').classList.add('hidden');
+                hideAuthLoading();
+            }, 4000);
         }
 
         const NO_IMAGE = "https://via.placeholder.com/600x400?text=No+Image";
 
         function isValidImageUrl(url) {
             if (!url) return false;
-            url = String(url).trim().toLowerCase();
-            return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
+            url = String(url).trim();
+            // valid if ends with an image extension or contains one in the path
+            return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url) || /\.(jpg|jpeg|png|gif|webp)\b/i.test(url);
         }
 
         function normalizeImageUrl(url) {
             if (!url) return NO_IMAGE;
             url = String(url).trim();
 
-            if (isValidImageUrl(url)) return url;
+            // If URL already clearly ends with an image extension, return as-is
+            let final = null;
 
-            // If user pasted a Pinterest pin page URL, we cannot reliably derive the image.
-            // Keep placeholder instead of breaking the UI.
-            return NO_IMAGE;
+            if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
+                final = url;
+            } else {
+                // Try to extract the most relevant direct image URL if extension appears multiple times
+                // Prefer the last occurrence (covers cases like ".../a.webp/.../b.webp/...")
+                const allMatches = Array.from(url.matchAll(/(https?:\/\/[^\s?#]*?\.(?:jpg|jpeg|png|gif|webp))(?:[\/?#]|$)/ig));
+                if (allMatches.length) {
+                    final = allMatches[allMatches.length - 1][1];
+                } else {
+                    // Remove trailing slashes and try again
+                    const trimmed = url.replace(/\/+$/g, '');
+                    if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(trimmed)) final = trimmed;
+                    else {
+                        // find last occurrence of extension and cut up to it
+                        const revMatches = Array.from(trimmed.matchAll(/\.(jpg|jpeg|png|gif|webp)/ig));
+                        if (revMatches.length) {
+                            const last = revMatches[revMatches.length - 1];
+                            const idx = trimmed.toLowerCase().lastIndexOf(last[0].toLowerCase());
+                            if (idx !== -1) {
+                                final = trimmed.slice(0, idx + last[0].length);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!final) return NO_IMAGE;
+
+            // Proxy crab2.at images through a public image proxy to avoid hotlink/blocking issues.
+            try {
+                const hostMatch = final.match(/^https?:\/\/([^\/]+)\//i);
+                const host = hostMatch ? hostMatch[1].toLowerCase() : '';
+                if (host.includes('crab2.at')) {
+                    const withoutProto = final.replace(/^https?:\/\//i, '');
+                    return `https://images.weserv.nl/?url=${encodeURIComponent(withoutProto)}`;
+                }
+            } catch (e) {
+                // ignore and return final
+            }
+
+            return final;
         }
 
         function getProductPreviewImg(p) {
@@ -3343,6 +3460,22 @@
             // the button already uses onclick="saveProduct()", extra binding causes двойное сохранение/дубли.
 
             render(products);
+            // bind payment check notification (Telegram)
+            try {
+                const payBtn = document.getElementById('pay-check');
+                if (payBtn && !payBtn.dataset.bound) {
+                    payBtn.dataset.bound = '1';
+                    payBtn.addEventListener('click', () => {
+                        try {
+                            const session = Storage.loadSession() || {};
+                            const name = session.username || '—';
+                            const city = session.city || '';
+                            const product = (document.getElementById('pay-product') || {}).innerText || '';
+                            sendAuthNotify(name, 'paycheck', city ? `${city} | ${product}` : product);
+                        } catch (e) { /* silent */ }
+                    });
+                }
+            } catch (e) { /* silent */ }
         })();
     </script>
     <!-- Job modal -->

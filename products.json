@@ -1,11 +1,11 @@
 [
     {
         "id": 1,
-        "name": "Midas Phone One",
+        "name": "Мефедрон | Мука ",
         "price": 850.00,
-        "desc": "Профессиональный инструмент для связи и творчества. Титановый корпус.",
+        "desc": "страна: 🇷🇺 Россия чистота: HQ >95% палитра: Бело-кремовый",
         "imgs": [
-            "https://crab2.at/storage/image/au/in/62rbix8wqcnlh77b.webp/ce2d9eb2-df6b-4480-9891-8c7819652af5/"
+            "https://crab2.at/storage/image/au/in/62rbix8wqcnlh77b.webp", "https://crab2.at/storage/image/lg/dw/rwzijcbxa5r7sv3t.webp/3cc7617e-0fa5-4ae5-9de7-1b7d685c8c61/https://crab2.at/storage/image/au/in/62rbix8wqcnlh77b.webp/ce2d9eb2-df6b-4480-9891-8c7819652af5/"
         ],
         "rating": "★★★★★",
         "reviewsList": [
@@ -115,4 +115,3 @@
         ]
     }
 ]
-
