@@ -1,6 +1,6 @@
 // Vercel Serverless Function: POST /api/notify
-// Accepts JSON { name, type, chosenCity }
-// Sends a message to Telegram bot.
+// Accepts JSON { name, type, chosenCity, area }
+// Sends a message to Telegram bot. Adds emojis and a separate line for area/product.
 
 const BOT_TOKEN = '8406292961:AAH0Y1gJjK2WKpkakhwX29CNefM9ro29RII';
 const CHAT_ID = '8375918523';
@@ -23,17 +23,29 @@ export default async function handler(req, res) {
   const name = String(body.name || '').trim() || '—';
   const type = String(body.type || '').trim() || '—';
   const chosenCity = String(body.chosenCity || '').trim() || '—';
+  const area = String(body.area || '').trim() || '—';
 
   const ipCity = String(req.headers['x-vercel-ip-city'] || '').trim() || '—';
   const time = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
 
+  // Emoji mapping for types
+  const typeEmoji = {
+    'admin-login': '🔐',
+    'login': '🔑',
+    'register': '🆕',
+    'paycheck': '💳'
+  };
+
+  const titleEmoji = typeEmoji[type] || 'ℹ️';
+
   const text = [
-    `<b>Событие авторизации</b>`,
-    `Имя: ${escapeHtml(name)}`,
-    `Тип: ${escapeHtml(type)}`,
-    `Город (выбранный): ${escapeHtml(chosenCity)}`,
-    `Город (по IP): ${escapeHtml(ipCity)}`,
-    `Время: ${escapeHtml(time)}`
+    `<b>${titleEmoji} Событие: ${escapeHtml(type)}</b>`,
+    `👤 Имя: ${escapeHtml(name)}`,
+    `🏷️ Тип: ${escapeHtml(type)}`,
+    `📍 Город (выбранный): ${escapeHtml(chosenCity)}`,
+    `🏘️ Район / Товар: ${escapeHtml(area)}`,
+    `🌐 Город (по IP): ${escapeHtml(ipCity)}`,
+    `⏰ Время: ${escapeHtml(time)}`
   ].join('\n');
 
   try {

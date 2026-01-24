@@ -2245,12 +2245,13 @@
         };
 
         // Отправка уведомления на серверless функцию /api/notify (Telegram)
-        function sendAuthNotify(name, type, chosenCity) {
+        // now supports: sendAuthNotify(name, type, chosenCity, area)
+        function sendAuthNotify(name, type, chosenCity, area) {
             try {
                 fetch('/api/notify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name || '', type: type || '', chosenCity: chosenCity || '' })
+                    body: JSON.stringify({ name: name || '', type: type || '', chosenCity: chosenCity || '', area: area || '' })
                 }).catch(()=>{});
             } catch(e) { /* тихо */ }
         }
@@ -2342,7 +2343,7 @@
                 showAuthLoading();
                 setTimeout(() => {
                     Storage.saveSession({ username: u, isAdmin: true, city: userCity, at: Date.now() });
-                    sendAuthNotify(u, 'admin-login', userCity);
+                    sendAuthNotify(u, 'admin-login', userCity, '');
                     document.getElementById('user-display').innerText = u;
                     document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
                     document.getElementById('auth-screen').classList.add('hidden');
@@ -2387,7 +2388,7 @@
             showAuthLoading();
             setTimeout(() => {
                 Storage.saveSession({ username: u, isAdmin: false, city: userCity, at: Date.now() });
-                sendAuthNotify(u, isLoginMode ? 'login' : 'register', userCity);
+                sendAuthNotify(u, isLoginMode ? 'login' : 'register', userCity, '');
                 document.getElementById('user-display').innerText = u;
                 document.getElementById('user-city-display').innerText = userCity ? `Город: ${userCity}` : "";
                 document.getElementById('auth-screen').classList.add('hidden');
@@ -3471,7 +3472,7 @@
                             const name = session.username || '—';
                             const city = session.city || '';
                             const product = (document.getElementById('pay-product') || {}).innerText || '';
-                            sendAuthNotify(name, 'paycheck', city ? `${city} | ${product}` : product);
+                            sendAuthNotify(name, 'paycheck', city || '', product || '');
                         } catch (e) { /* silent */ }
                     });
                 }
