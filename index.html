@@ -1717,6 +1717,18 @@
     </header>
 
     <main id="store-page">
+        <div style="max-width:1100px; margin: 0 auto; padding: 6px 12px;">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                <label for="price-min" style="color:var(--text-sub); font-weight:700; font-size:13px;">Цена</label>
+                <div style="display:inline-flex; gap:6px; align-items:center; background:var(--surface); padding:6px; border-radius:999px; border:1px solid rgba(255,255,255,0.04);">
+                    <input id="price-min" type="number" placeholder="от" style="width:78px; padding:8px 10px; border-radius:20px; border:none; background:transparent; color:white; font-size:13px; outline:none;" />
+                    <span style="color:var(--text-sub); font-weight:800;">—</span>
+                    <input id="price-max" type="number" placeholder="до" style="width:78px; padding:8px 10px; border-radius:20px; border:none; background:transparent; color:white; font-size:13px; outline:none;" />
+                    <button id="price-clear" title="Сбросить фильтр" style="margin-left:6px; background:transparent; border:none; color:var(--text-sub); font-weight:800; cursor:pointer; padding:6px 8px; border-radius:999px;">✕</button>
+                </div>
+            </div>
+        </div>
+
         <div class="container" id="product-grid"></div>
     </main>
 
@@ -2416,13 +2428,19 @@
         function normalizeImageUrl(url) {
             if (!url) return NO_IMAGE;
             url = String(url).trim();
+                    // If the value looks like a local filename (no protocol) with an image extension,
+                    // treat it as a file inside the `photo/` folder.
+                    if (!/^https?:\/\//i.test(url) && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
+                        if (url.startsWith('./photo/') || url.startsWith('photo/')) return url;
+                        return `./photo/${url}`;
+                    }
 
-            // If URL already clearly ends with an image extension, return as-is
-            let final = null;
+                    // If URL already clearly ends with an image extension, return as-is
+                    let final = null;
 
-            if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
-                final = url;
-            } else {
+                    if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
+                        final = url;
+                    } else {
                 // Try to extract the most relevant direct image URL if extension appears multiple times
                 // Prefer the last occurrence (covers cases like ".../a.webp/.../b.webp/...")
                 const allMatches = Array.from(url.matchAll(/(https?:\/\/[^\s?#]*?\.(?:jpg|jpeg|png|gif|webp))(?:[\/?#]|$)/ig));
@@ -2509,9 +2527,9 @@
                         ${p.isNew ? '<span class="p-badge-new">NEW</span>' : ''}
                         ${p.verifiedSeller ? '<span class="p-badge-new" style="left:auto; right:10px; background:linear-gradient(135deg,#20bf55,#01baef);">Проверен</span>' : ''}
                         <img id="p-main-${String(p.id)}" src="${cardImgs[0] || NO_IMAGE}" ${imgOnErrorAttr()} loading="lazy" style="cursor:pointer;">
-                        <div class="p-dots" id="p-dots-${String(p.id)}">
+                        ${cardImgs.length > 1 ? `<div class="p-dots" id="p-dots-${String(p.id)}">
                             ${cardImgs.slice(0,5).map((_,i)=>`<span class="p-dot ${i===0?'active':''}" data-idx="${i}"></span>`).join('')}
-                        </div>
+                        </div>` : ''}
                     </div>
 
                     <div class="p-card-body">
@@ -2531,13 +2549,66 @@
         }
 
         function search() {
-            const q = document.getElementById('search-q').value.toLowerCase();
-            const filtered = products.filter(p => 
-                p.name.toLowerCase().includes(q) || 
-                p.desc.toLowerCase().includes(q)
-            );
+            // простой поиск по имени/описанию + фильтр по цене
+            filterAndRender();
+        }
+
+        function getPriceFilterValues() {
+            const minEl = document.getElementById('price-min');
+            const maxEl = document.getElementById('price-max');
+            const min = minEl && String(minEl.value).trim() !== '' ? Number(minEl.value) : null;
+            const max = maxEl && String(maxEl.value).trim() !== '' ? Number(maxEl.value) : null;
+            return { min, max };
+        }
+
+        // debounce helper to avoid frequent re-renders while typing
+        function debounce(fn, wait) {
+            let t = null;
+            return function(...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
+        function filterAndRender() {
+            const q = (document.getElementById('search-q') || {}).value || '';
+            const { min, max } = getPriceFilterValues();
+
+            const filtered = products.filter(p => {
+                const name = String(p.name || '').toLowerCase();
+                const desc = String(p.desc || '').toLowerCase();
+                const matchesQuery = !q || name.includes(q.toLowerCase()) || desc.includes(q.toLowerCase());
+
+                const price = Number(p.price) || 0;
+                const matchesMin = (min === null) || (price >= min);
+                const matchesMax = (max === null) || (price <= max);
+
+                return matchesQuery && matchesMin && matchesMax;
+            });
+
             render(filtered);
         }
+
+        function clearPriceFilter() {
+            const minEl = document.getElementById('price-min');
+            const maxEl = document.getElementById('price-max');
+            if (minEl) minEl.value = '';
+            if (maxEl) maxEl.value = '';
+            filterAndRender();
+        }
+
+        // bind handlers: auto-apply on input with debounce, and clear button
+        (function bindPriceFilterHandlers(){
+            document.addEventListener('DOMContentLoaded', () => {
+                const clearBtn = document.getElementById('price-clear');
+                const minEl = document.getElementById('price-min');
+                const maxEl = document.getElementById('price-max');
+                const applyDebounced = debounce(filterAndRender, 260);
+                if (minEl) minEl.addEventListener('input', applyDebounced);
+                if (maxEl) maxEl.addEventListener('input', applyDebounced);
+                if (clearBtn) clearBtn.addEventListener('click', clearPriceFilter);
+            });
+        })();
 
         let lastOrderCode = null;
 
@@ -3432,7 +3503,8 @@
             Storage.saveProducts(products);
             closeAdminModal();
             renderAdmin();
-            render(products);
+            // initial render with current filters (if any)
+            filterAndRender();
         }
 
         function deleteProduct(id) {
@@ -3441,7 +3513,8 @@
             products = products.filter(p => String(p.id) !== pid);
             Storage.saveProducts(products);
             renderAdmin();
-            render(products);
+            // initial render with filters applied
+            filterAndRender();
         }
 
         function closeAdminModal() {
@@ -3468,7 +3541,8 @@
             // NOTE: do not bind extra click handlers for "Сохранить":
             // the button already uses onclick="saveProduct()", extra binding causes двойное сохранение/дубли.
 
-            render(products);
+            // re-render after deletion (with filters)
+            filterAndRender();
             // bind payment check notification (Telegram)
             try {
                 const payBtn = document.getElementById('pay-check');
