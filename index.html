@@ -54,7 +54,7 @@
         .auth-card {
             width: 100%;
             max-width: 380px;
-            padding: 32px;
+            padding: 72px 32px 32px; /* учитываем место для логотипа сверху */
             background: rgba(45, 48, 51, 0.92);
             border-radius: var(--radius);
             text-align: center;
@@ -69,31 +69,34 @@
         }
 
         /* Ненавязчивый логотип на панели входа/регистрации */
-        /* Логотип — поднят сверху, больше и ярче */
+        /* Логотип — устойчиво расположен над карточкой на всех экранах */
         #auth-logo {
             position: absolute;
-            top: -50px; /* выше карточки */
+            top: 0; /* центрируем верхнюю границу логотипа по верхней границе карточки */
             left: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, -50%); /* смещаем вверх на половину высоты логотипа */
             display: block;
-            width: 120px;
-            max-width: 40%;
+            width: clamp(72px, 18vw, 120px);
+            max-width: none;
             height: auto;
-            opacity: 1; /* ярче */
+            opacity: 1;
             filter: none;
             pointer-events: none;
             user-select: none;
-            transition: opacity 180ms ease, transform 180ms ease;
+            transition: opacity 180ms ease, transform 180ms ease, top 180ms ease;
             -webkit-filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
             filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+            box-sizing: border-box;
         }
 
         @media (max-width: 720px) {
-            #auth-logo { width: 100px; top: -36px; opacity: 0.72 }
+            .auth-card { padding: 64px 20px 20px; }
+            #auth-logo { width: clamp(64px, 20vw, 100px); }
         }
 
         @media (max-width: 420px) {
-            #auth-logo { width: 100px; top: -110px; opacity: 0.68 }
+            .auth-card { padding: 56px 16px 16px; }
+            #auth-logo { width: clamp(56px, 24vw, 88px); }
         }
 
         @media (max-width: 20px) {
@@ -1717,18 +1720,6 @@
     </header>
 
     <main id="store-page">
-        <div style="max-width:1100px; margin: 0 auto; padding: 6px 12px;">
-            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-                <label for="price-min" style="color:var(--text-sub); font-weight:700; font-size:13px;">Цена</label>
-                <div style="display:inline-flex; gap:6px; align-items:center; background:var(--surface); padding:6px; border-radius:999px; border:1px solid rgba(255,255,255,0.04);">
-                    <input id="price-min" type="number" placeholder="от" style="width:78px; padding:8px 10px; border-radius:20px; border:none; background:transparent; color:white; font-size:13px; outline:none;" />
-                    <span style="color:var(--text-sub); font-weight:800;">—</span>
-                    <input id="price-max" type="number" placeholder="до" style="width:78px; padding:8px 10px; border-radius:20px; border:none; background:transparent; color:white; font-size:13px; outline:none;" />
-                    <button id="price-clear" title="Сбросить фильтр" style="margin-left:6px; background:transparent; border:none; color:var(--text-sub); font-weight:800; cursor:pointer; padding:6px 8px; border-radius:999px;">✕</button>
-                </div>
-            </div>
-        </div>
-
         <div class="container" id="product-grid"></div>
     </main>
 
@@ -2549,18 +2540,9 @@
         }
 
         function search() {
-            // простой поиск по имени/описанию + фильтр по цене
+            // простой поиск по имени/описанию (без ценовых фильтров)
             filterAndRender();
         }
-
-        function getPriceFilterValues() {
-            const minEl = document.getElementById('price-min');
-            const maxEl = document.getElementById('price-max');
-            const min = minEl && String(minEl.value).trim() !== '' ? Number(minEl.value) : null;
-            const max = maxEl && String(maxEl.value).trim() !== '' ? Number(maxEl.value) : null;
-            return { min, max };
-        }
-
         // debounce helper to avoid frequent re-renders while typing
         function debounce(fn, wait) {
             let t = null;
@@ -2569,46 +2551,19 @@
                 t = setTimeout(() => fn.apply(this, args), wait);
             };
         }
-
+        
         function filterAndRender() {
             const q = (document.getElementById('search-q') || {}).value || '';
-            const { min, max } = getPriceFilterValues();
 
             const filtered = products.filter(p => {
                 const name = String(p.name || '').toLowerCase();
                 const desc = String(p.desc || '').toLowerCase();
                 const matchesQuery = !q || name.includes(q.toLowerCase()) || desc.includes(q.toLowerCase());
-
-                const price = Number(p.price) || 0;
-                const matchesMin = (min === null) || (price >= min);
-                const matchesMax = (max === null) || (price <= max);
-
-                return matchesQuery && matchesMin && matchesMax;
+                return matchesQuery;
             });
 
             render(filtered);
         }
-
-        function clearPriceFilter() {
-            const minEl = document.getElementById('price-min');
-            const maxEl = document.getElementById('price-max');
-            if (minEl) minEl.value = '';
-            if (maxEl) maxEl.value = '';
-            filterAndRender();
-        }
-
-        // bind handlers: auto-apply on input with debounce, and clear button
-        (function bindPriceFilterHandlers(){
-            document.addEventListener('DOMContentLoaded', () => {
-                const clearBtn = document.getElementById('price-clear');
-                const minEl = document.getElementById('price-min');
-                const maxEl = document.getElementById('price-max');
-                const applyDebounced = debounce(filterAndRender, 260);
-                if (minEl) minEl.addEventListener('input', applyDebounced);
-                if (maxEl) maxEl.addEventListener('input', applyDebounced);
-                if (clearBtn) clearBtn.addEventListener('click', clearPriceFilter);
-            });
-        })();
 
         let lastOrderCode = null;
 
