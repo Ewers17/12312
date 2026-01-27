@@ -2185,8 +2185,39 @@
             }
         }
 
+        // Reviews moved to separate file
+        let reviews = [];
+
+        async function loadExternalReviews() {
+            try {
+                const res = await fetch('./reviews.json', { cache: 'no-store' });
+                const data = await res.json();
+                if (Array.isArray(data)) reviews = data;
+            } catch (e) {
+                console.warn('Failed to load reviews.json', e);
+                reviews = [];
+            }
+        }
+
+        // Граммовка: список product_id, для которых нельзя выбирать 0.5 г
+        let gramsExclude = [];
+
+        async function loadGramsExclude() {
+            try {
+                const res = await fetch('./grams-exclude.json', { cache: 'no-store' });
+                const data = await res.json();
+                if (Array.isArray(data)) gramsExclude = data;
+            } catch (e) {
+                console.warn('Failed to load grams-exclude.json', e);
+                gramsExclude = [];
+            }
+        }
+
         let isLoginMode = true;
         let isAdmin = false;
+
+        // Сохраняем позицию каталога при открытии товара, чтобы восстановить её при возврате
+        let lastStoreScroll = 0;
 
         let userCity = ""; // выбранный город пользователя (в регистрации)
 
@@ -2491,6 +2522,9 @@
 
             grid.innerHTML = items.map(p => {
                 const price1g = Number(p.price) || 0;
+                const excludedForHalf = Array.isArray(gramsExclude) && gramsExclude.some(x => String(x) === String(p.id));
+                const displayGram = excludedForHalf ? 1 : 0.5;
+                const displayPriceVal = Math.round(price1g * displayGram * 100) / 100;
 
                 const hasDiscount = !!p.discountEnabled;
                 const oldPrice = hasDiscount ? Number(p.oldPrice || 0) : 0;
@@ -2505,9 +2539,14 @@
                 const cardImgs = (Array.isArray(p.imgs) && p.imgs.length ? p.imgs : [getProductPreviewImg(p)]).map(normalizeImageUrl);
 
                 // Собираем первый отзыв для показа сниппета на карточке.
-                const reviewsArr = Array.isArray(p.reviewsList) ? p.reviewsList
-                    : ( (p.reviewAuthor || p.reviewText) ? [{ author: p.reviewAuthor || "", text: (p.reviewText || "").replace(/\bNEW\b/gi, '').trim() }]
-                        : (p.reviews ? [{ author: "", text: String(p.reviews).replace(/\bNEW\b/gi, '').trim() }] : []));
+                // Try to get reviews from the global `reviews` file first (by product_id),
+                // fall back to legacy per-product fields if present.
+                const productIdStr = String(p.id);
+                const globalForProduct = (Array.isArray(reviews) ? reviews.filter(r => String(r.product_id) === productIdStr) : []);
+                const reviewsArr = globalForProduct.length ? globalForProduct.map(r => ({ author: r.author || '', text: (r.comment || '').replace(/\bNEW\b/gi, '').trim() }))
+                    : ( Array.isArray(p.reviewsList) ? p.reviewsList
+                        : ( (p.reviewAuthor || p.reviewText || p.reviews) ? [{ author: p.reviewAuthor || "", text: (p.reviewText || p.reviews || "").replace(/\bNEW\b/gi, '').trim() }]
+                            : []));
                 const firstReviewRaw = (reviewsArr[0] && (reviewsArr[0].text || '')) ? String(reviewsArr[0].text) : '';
                 const firstReviewSafe = firstReviewRaw.replace(/</g, '&lt;').replace(/\bNEW\b/gi, '').trim();
                 const snippet = firstReviewSafe ? (firstReviewSafe.length > 80 ? firstReviewSafe.slice(0,77) + '…' : firstReviewSafe) : '';
@@ -2525,7 +2564,7 @@
 
                     <div class="p-card-body">
                         <div class="p-price-row">
-                            <span class="p-price-new">${price1g.toLocaleString('ru-RU')} ₽</span>
+                            <span class="p-price-new">${displayPriceVal.toLocaleString('ru-RU', {maximumFractionDigits:2})} ₽ <span style="font-size:12px; color:var(--text-sub);">/${String(displayGram).replace('.00','')} г</span></span>
                             ${discountHtml}
                         </div>
 
@@ -2567,9 +2606,13 @@
 
         let lastOrderCode = null;
 
-        function buildGramsOptions() {
+        function buildGramsOptions(minGram = 0.5) {
+            // allowed grams: 0.5,1,2,3,4,5,6,7,8  (9 и 10 удалены)
+            const allowed = [0.5,1,2,3,4,5,6,7,8];
             const grams = [];
-            for (let i = 1; i <= 10; i++) grams.push(`${i.toFixed(2)} г`);
+            for (const g of allowed) {
+                if (g >= Number(minGram)) grams.push(`${g.toFixed(2)} г`);
+            }
             return grams;
         }
 
@@ -2592,6 +2635,9 @@
                     return;
                 }
 
+                // Сохраняем текущую позицию каталога (чтобы вернуть при закрытии)
+                try { lastStoreScroll = window.scrollY || document.documentElement.scrollTop || 0; } catch(e) { lastStoreScroll = 0; }
+
                 // Скрыть другие страницы, показать страницу товара
                 ['store', 'profile', 'admin'].forEach(page => {
                     const el = document.getElementById(page + '-page');
@@ -2599,6 +2645,25 @@
                 });
                 const prodPage = document.getElementById('product-page');
                 if (prodPage) prodPage.classList.remove('hidden');
+
+                // Прокручиваем страницу товара наверх, чтобы сначала был виден сам товар, а не отзывы
+                try {
+                    if (prodPage) prodPage.scrollTop = 0;
+                    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+                    // Блокируем фон через класс modal-open и делаем сам `product-page` фиксированным и скроллимым
+                    try {
+                        document.body.classList.add('modal-open');
+                        prodPage.dataset.fixed = '1';
+                        prodPage.style.position = 'fixed';
+                        prodPage.style.top = '0';
+                        prodPage.style.left = '0';
+                        prodPage.style.right = '0';
+                        prodPage.style.bottom = '0';
+                        prodPage.style.zIndex = '1200';
+                        prodPage.style.overflow = 'auto';
+                    } catch (e) { /* тихо */ }
+                } catch (e) { /* тихо */ }
 
                 // Назад
                 const backBtn = document.getElementById('pp-back');
@@ -2668,8 +2733,11 @@
                 document.getElementById('pp-price').innerText = Number(p.price).toLocaleString('ru-RU') + " ₽";
 
                 // Отзывы
-                const reviewsArr = Array.isArray(p.reviewsList) ? p.reviewsList
-                    : ((p.reviewAuthor || p.reviewText) ? [{ author: p.reviewAuthor || "", text: (p.reviewText || p.reviews || "").replace(/\bNEW\b/gi, '').trim() }] : []);
+                // Use global reviews if available, otherwise fall back to product-local reviews
+                const pidStr = String(p.id);
+                const globalForProduct = (Array.isArray(reviews) ? reviews.filter(r => String(r.product_id) === pidStr) : []);
+                const reviewsArr = globalForProduct.length ? globalForProduct.map(r => ({ author: r.author || '', text: (r.comment || '').replace(/\bNEW\b/gi, '').trim() }))
+                    : ((Array.isArray(p.reviewsList) ? p.reviewsList : ((p.reviewAuthor || p.reviewText) ? [{ author: p.reviewAuthor || "", text: (p.reviewText || p.reviews || "").replace(/\bNEW\b/gi, '').trim() }] : [])));
                 const filtered = reviewsArr
                     .map(r => ({ author: (r.author || "").trim(), text: (r.text || "").replace(/\bNEW\b/gi, '').trim() }))
                     .filter(r => r.author && r.text);
@@ -2728,9 +2796,13 @@
                 // Граммовка
                 const gramsSel = document.getElementById('pp-grams');
                 if (gramsSel) {
-                    const grams = buildGramsOptions();
+                    const excluded = Array.isArray(gramsExclude) && gramsExclude.some(x => String(x) === String(p.id));
+                    const minGram = excluded ? 1.0 : 0.5;
+                    const grams = buildGramsOptions(minGram);
                     gramsSel.innerHTML = grams.map((g, i) => `<option value="${g}" ${i === 0 ? 'selected' : ''}>${g}</option>`).join('');
                     gramsSel.onchange = () => updatePriceByGrams(p);
+                    // Обновим цену сразу по выбранной граммовке (для не-исключённых это будет 0.5 г)
+                    try { updatePriceByGrams(p); } catch (e) { /* тихо */ }
                 }
 
                 // Flow
@@ -2910,6 +2982,28 @@
             document.getElementById(p + '-page').classList.remove('hidden');
             if(p === 'admin') renderAdmin();
             if(p === 'jobs') renderJobs();
+            // При возврате в каталог — восстановим прокрутку, чтобы позиция не менялась
+            if (p === 'store') {
+                try {
+                    const prodPage = document.getElementById('product-page');
+                    if (prodPage && prodPage.dataset.fixed) {
+                        // снимем фиксацию product-page и класс блокировки фона
+                        prodPage.style.position = '';
+                        prodPage.style.top = '';
+                        prodPage.style.left = '';
+                        prodPage.style.right = '';
+                        prodPage.style.bottom = '';
+                        prodPage.style.zIndex = '';
+                        prodPage.style.overflow = '';
+                        delete prodPage.dataset.fixed;
+                        document.body.classList.remove('modal-open');
+
+                        setTimeout(() => { window.scrollTo({ top: Number(lastStoreScroll) || 0, left: 0, behavior: 'auto' }); }, 0);
+                    } else {
+                        setTimeout(() => { window.scrollTo({ top: Number(lastStoreScroll) || 0, left: 0, behavior: 'auto' }); }, 0);
+                    }
+                } catch (e) { /* тихо */ }
+            }
         }
 
         // JOBS
@@ -3470,17 +3564,18 @@
             renderAdmin();
             // initial render with filters applied
             filterAndRender();
-        }
 
-        function closeAdminModal() {
             const m = document.getElementById('admin-modal');
             if (m) m.classList.add('hidden');
             document.body.classList.remove('modal-open');
         }
 
         // --- APP INIT (must be global scope) ---
+
         (async () => {
             await loadExternalProducts();
+            await loadExternalReviews();
+            await loadGramsExclude();
 
             // Restore session (optional)
             const session = Storage.loadSession();
